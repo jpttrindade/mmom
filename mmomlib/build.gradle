@@ -6,15 +6,15 @@ ext {
     bintrayName = 'mmom-lib'
 
     publishedGroupId = 'com.jpttrindade.mmomlib'
-    libraryName = 'mmom'
-    artifact = 'mmom'
+    libraryName = 'mMOMLib'
+    artifact = 'mmom-lib'
 
     libraryDescription = 'Mobile Message-oriented Middleware'
 
     siteUrl = 'https://github.com/jpttrindade/mmom'
     gitUrl = 'https://github.com/jpttrindade/mmom.git'
 
-    libraryVersion = '1.0.6'
+    libraryVersion = '1.0.8'
 
     developerId = 'jpttrindade'
     developerName = 'Joao Paulo T Trindade'
@@ -32,8 +32,8 @@ android {
     defaultConfig {
         minSdkVersion 21
         targetSdkVersion 23
-        versionCode 20
-        versionName "2.0"
+        versionCode 21
+        versionName "2.1"
     }
     buildTypes {
         release {
@@ -43,6 +43,11 @@ android {
     }
 }
 
+repositories {
+    maven {
+        url 'https://dl.bintray.com/jpttrindade/repo-mmom/'
+    }
+}
 dependencies {
     compile fileTree(dir: 'libs', include: ['*.jar'])
     testCompile 'junit:junit:4.12'
