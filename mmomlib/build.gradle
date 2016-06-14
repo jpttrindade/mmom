@@ -2,19 +2,19 @@ apply plugin: 'com.android.library'
 
 
 ext {
-    bintrayRepo = 'maven'
+    bintrayRepo = 'repo-mmom'
     bintrayName = 'mmom-lib'
 
-    publishedGroupId = 'com.jppttrindade.mmomlib'
-    libraryName = 'mMOM-Lib'
-    artifact = 'mMOM-lib'
+    publishedGroupId = 'com.jpttrindade.mmomlib'
+    libraryName = 'mmom'
+    artifact = 'mmom'
 
     libraryDescription = 'Mobile Message-oriented Middleware'
 
     siteUrl = 'https://github.com/jpttrindade/mmom'
     gitUrl = 'https://github.com/jpttrindade/mmom.git'
 
-    libraryVersion = '0.0.1'
+    libraryVersion = '1.0.2'
 
     developerId = 'jpttrindade'
     developerName = 'Joao Paulo T Trindade'
@@ -48,3 +48,7 @@ dependencies {
     testCompile 'junit:junit:4.12'
     compile 'com.android.support:appcompat-v7:23.4.0'
 }
+
+// Place it at the end of the file
+apply from: 'https://raw.githubusercontent.com/nuuneoi/JCenter/master/installv1.gradle'
+apply from: 'https://raw.githubusercontent.com/nuuneoi/JCenter/master/bintrayv1.gradle'
