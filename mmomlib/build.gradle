@@ -7,14 +7,14 @@ ext {
 
     publishedGroupId = 'com.jpttrindade.mmomlib'
     libraryName = 'mMOMLib'
-    artifact = 'mmom-lib'
+    artifact = 'mmomlib'
 
     libraryDescription = 'Mobile Message-oriented Middleware'
 
     siteUrl = 'https://github.com/jpttrindade/mmom'
     gitUrl = 'https://github.com/jpttrindade/mmom.git'
 
-    libraryVersion = '1.0.8'
+    libraryVersion = '1.0.9'
 
     developerId = 'jpttrindade'
     developerName = 'Joao Paulo T Trindade'
