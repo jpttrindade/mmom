@@ -3,9 +3,6 @@ package br.com.jpttrindade.mmomlib;
 import android.app.IntentService;
 import android.content.Intent;
 
-import br.com.jpttrindade.mmomlib.mmomserver.IMMomServer;
-import br.com.jpttrindade.mmomlib.mmomserver.MMomServer;
-
 public class IntentServiceTeste extends IntentService {
 
     private static final String NAME = "testeiService";
