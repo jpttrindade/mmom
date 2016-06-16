@@ -1,6 +1,7 @@
 package br.com.jpttrindade.mmomlib.mmomserver;
 
 import android.content.Context;
+import android.util.Log;
 
 /**
  * Created by jpttrindade on 14/06/16.
@@ -21,5 +22,11 @@ public class IMMomServerInstance implements IMMomServer {
     @Override
     public void response(Object data) {
         brokerConnection.response(data);
+    }
+
+    @Override
+    public void closeConnection() {
+        Log.d("DEBUG", "IMMomServerInstance.closeConnection");
+        brokerConnection.closeConnection();
     }
 }

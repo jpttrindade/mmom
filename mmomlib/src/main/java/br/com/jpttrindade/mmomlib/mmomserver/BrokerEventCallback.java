@@ -8,4 +8,6 @@ public interface BrokerEventCallback {
 
     public void onConnectionEstablished();
 
+    public void onConnectionClosed();
+
 }

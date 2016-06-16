@@ -12,16 +12,12 @@ import android.os.Process;
 import android.os.RemoteException;
 import android.util.Log;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedReader;
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.net.Socket;
+import java.net.SocketException;
 
 public class BrokerConnectionService extends Service {
 
@@ -67,9 +63,18 @@ public class BrokerConnectionService extends Service {
                     int port = msg.arg1;
                     connectToBroker(host, port);
                     break;
+                case BrokerConnection.RESPONSE_MESSAGE:
+                    ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+                    //sendConnection(outputStream);
+                    sendText("requestId","{\"response\":\"que orgulho meu jovem coração.\"}");
+                    break;
+                case BrokerConnection.CLOSE_CONNECTION:
+                    closeConnection();
+                    break;
             }
         }
     }
+
 
     @Override
     public void onCreate() {
@@ -89,27 +94,27 @@ public class BrokerConnectionService extends Service {
                 public void run() {
                     try {
                         socket = new Socket(host, port);
-                        out = new PrintStream(socket.getOutputStream());
+                        //out = new PrintStream(socket.getOutputStream());
 
-                        in = new DataInputStream(socket.getInputStream());
+                        // in = new DataInputStream(socket.getInputStream());
                         notifyConnectionEstablished();
-                        //TODO verificar logica de escuta do broker auqi
+                        sendConnection();
 
-                        int size = in.read();
+                        while(true) {
+                            int i = socket.getInputStream().read();
+                            Log.d("DEBUG", "socket.read = " + i);
 
-                        byte[] data = new byte[3];
-                        in.read(data,0,3);
-                        System.out.println(new String(data));
+                            if (i < 0) {
+                                notifyConnectionClosed(BrokerConnection.CONNECTION_CLOSED_BY_BROKER);
+                                break;
+                            } else {
+                                Log.d("DEBUG", "i>0");
+                                receiveMessage(socket.getInputStream());
+                            }
 
-                        int fileSize = in.read();
-
-                        System.out.println(""+fileSize);
-
-                        data = new byte[fileSize];
-                        in.read(data,0,size);
-
-                        System.out.println(new String(data));
-
+                        }
+                    } catch (SocketException e) {
+                        Log.e("DEBUG", e.getMessage());
                     } catch (IOException e) {
                         e.printStackTrace();
                     }
@@ -135,6 +140,63 @@ public class BrokerConnectionService extends Service {
         }
     }
 
+    private void receiveMessage(InputStream inputStream) {
+        Log.d("DEBUG", "BrokerConnectionService.receiverMessage");
+    }
+
+
+    private void closeConnection() {
+        Log.d("DEBUG", "BrokerConnectionService.closeConnection");
+        try {
+            if (socket.isConnected()) {
+                socket.close();
+            }
+            notifyConnectionClosed(BrokerConnection.CONNECTION_CLOSED_BY_APP);
+        }catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+
+
+
+    private void sendText(String requestId, String text) {
+        try {
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            outputStream.write(1); //type text
+
+            //RequestId
+            outputStream.write(requestId.getBytes().length); //RequestId size
+            outputStream.write(requestId.getBytes()); //RequestId requestId
+
+            //content
+            outputStream.write(text.getBytes().length); //Content size
+            outputStream.write(text.getBytes()); //Content content
+
+            outputStream.writeTo(socket.getOutputStream());
+            outputStream.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+    }
+
+    private void sendConnection(){
+        try {
+
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            outputStream.write(0); //type conn
+            String uuid = "uuid1";
+            //content
+            outputStream.write(uuid.getBytes().length); //content size
+            outputStream.write(uuid.getBytes()); //content content
+            outputStream.writeTo(socket.getOutputStream());
+            outputStream.close();
+        }catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
     private void notifyConnectionEstablished() {
         try {
             Message msg = new Message();
@@ -145,6 +207,25 @@ public class BrokerConnectionService extends Service {
         }
     }
 
+    private void notifyConnectionClosed(int close_id) {
+        try {
+            Log.d("DEBUG", "notifyConnectionClosed()");
+
+            Message msg = new Message();
+            msg.what = close_id;
+            toClientHandlerMessenger.send(msg);
+        } catch (RemoteException e) {
+            e.printStackTrace();
+        }
+    }
+
+    @Override
+    public boolean onUnbind(Intent intent) {
+        Log.d("DEBUG", "onUnbind");
+
+        closeConnection();
+        return super.onUnbind(intent);
+    }
 
     @Override
     public IBinder onBind(Intent intent) {

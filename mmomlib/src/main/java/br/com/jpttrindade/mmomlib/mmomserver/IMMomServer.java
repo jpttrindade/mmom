@@ -6,4 +6,5 @@ package br.com.jpttrindade.mmomlib.mmomserver;
 public interface IMMomServer {
     public void connect(BrokerEventCallback callback);
     public void response(Object data);
+    public void closeConnection();
 }
