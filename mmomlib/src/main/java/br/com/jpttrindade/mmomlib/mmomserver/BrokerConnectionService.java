@@ -130,7 +130,11 @@ public class BrokerConnectionService extends Service {
                             //PROVAVELMENTE ESTA TENTANTO ABRIR CONEXÃO COM O BROKER: 1- o broker esta off 2- sem internet
                             if(isNetworkAvailable()) {
                                 //Provavelmente o Broker esta off
-                                Log.e("DEBUG", "Broker off.");
+                                if(isBinded) {
+                                    Log.e("DEBUG", "Broker off.");
+                                }else {
+                                    Log.e("DEBUG", "AppClient foi desligado.");
+                                }
                             } else {
                                 //Sem conexao com internet para estabelecer conexao com o Broker
                                 Log.e("DEBUG", "Sem acesso a internet.");
@@ -176,9 +180,11 @@ public class BrokerConnectionService extends Service {
     private void closeConnection() {
         Log.d("DEBUG", "BrokerConnectionService.closeConnection, socket = "+socket);
         try {
-            if (socket != null && socket.isConnected()) {
+            if (socket != null && isConnected) {
                 Log.d("DEBUG", "BrokerConnectionService.closeConnection, socket.close()");
+                //socket.shutdownInput();
                 socket.close();
+
             }
             notifyConnectionClosed(BrokerConnection.CONNECTION_CLOSED_BY_APP);
         }catch (IOException e) {
