@@ -28,7 +28,7 @@ public class BrokerConnection implements ServiceConnection{
     private final int port;
     private final Context context;
 
-    private boolean mBound;
+    private boolean isBounded;
     private boolean isConnected;
     // Recebe os eventos do broker
     private BrokerEventHandler brokerEventHandler;
@@ -60,15 +60,12 @@ public class BrokerConnection implements ServiceConnection{
                     brokerEventHandler.sendMessage(newMsg);
 
                     toServiceHandlerMessenger = null;
-                    mBound = false;
+                    isBounded = false;
                     isConnected = false;
                     break;
             }
         }
     }
-
-
-
 
     public BrokerConnection(Context context, String host, int port) {
         Log.d("DEBUG", "instanciando o BrokerConnection");
@@ -100,7 +97,7 @@ public class BrokerConnection implements ServiceConnection{
 
     public void closeConnection() {
         Log.d("DEBUG", "BrokerConnection.closeConnection");
-        if(isConnected) {
+        if(isConnected && isBounded) {
             context.unbindService(BrokerConnection.this);
         }
     }
@@ -127,7 +124,7 @@ public class BrokerConnection implements ServiceConnection{
         Log.d("DEBUG", "sucesso na conexao com o service!");
         Log.d("DEBUG", "setando toServiceHandlerMessenger");
         toServiceHandlerMessenger = new Messenger(service);
-        mBound = true;
+        isBounded = true;
         sendfromServiceHandlerMessenger();
 
         realConnect();
@@ -153,7 +150,7 @@ public class BrokerConnection implements ServiceConnection{
         Log.d("DEBUG", "conexao com o service encerrada!");
 
         toServiceHandlerMessenger = null;
-        mBound = false;
+        isBounded = false;
         isConnected = false;
 
     }

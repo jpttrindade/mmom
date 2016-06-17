@@ -1,7 +1,10 @@
 package br.com.jpttrindade.mmomlib.mmomserver;
 
 import android.app.Service;
+import android.content.Context;
 import android.content.Intent;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
@@ -29,6 +32,8 @@ public class BrokerConnectionService extends Service {
     private PrintStream out;
     private InputStream in;
     private ServiceHandler mServiceHandler;
+    private boolean isBinded;
+    private boolean isConnected;
 
     private final class ServiceHandler extends Handler{
         public ServiceHandler(Looper looper) {
@@ -94,19 +99,15 @@ public class BrokerConnectionService extends Service {
                 public void run() {
                     try {
                         socket = new Socket(host, port);
-                        //out = new PrintStream(socket.getOutputStream());
-
-                        // in = new DataInputStream(socket.getInputStream());
-                        notifyConnectionEstablished();
                         sendConnection();
+                        notifyConnectionEstablished();
 
                         while(true) {
                             int i = socket.getInputStream().read();
                             Log.d("DEBUG", "socket.read = " + i);
 
-                            if (i < 0) {
-                                notifyConnectionClosed(BrokerConnection.CONNECTION_CLOSED_BY_BROKER);
-                                break;
+                            if (i == -1) {
+                                throw new SocketException();
                             } else {
                                 Log.d("DEBUG", "i>0");
                                 receiveMessage(socket.getInputStream());
@@ -114,7 +115,34 @@ public class BrokerConnectionService extends Service {
 
                         }
                     } catch (SocketException e) {
-                        Log.e("DEBUG", e.getMessage());
+                        //TODO retry
+                        if(isConnected) {
+                            //PROVAVELMENTE PERDEU A CONEXÃO COM BROKER: 1- o broker caiu 2- internet caiu
+                            if(isNetworkAvailable()) {
+                                //TODO talvez lancar exceptio quando o broker encerrar a conexao
+                                //BROKER CAIU
+                                Log.e("DEBUG", "Broker caiu.");
+                            } else {
+                                //INTERNET CAIU
+                                Log.e("DEBUG", "Internet caiu.");
+                            }
+                        } else {
+                            //PROVAVELMENTE ESTA TENTANTO ABRIR CONEXÃO COM O BROKER: 1- o broker esta off 2- sem internet
+                            if(isNetworkAvailable()) {
+                                //Provavelmente o Broker esta off
+                                Log.e("DEBUG", "Broker off.");
+                            } else {
+                                //Sem conexao com internet para estabelecer conexao com o Broker
+                                Log.e("DEBUG", "Sem acesso a internet.");
+                            }
+                        }
+
+                        if(isBinded) {
+                            notifyConnectionClosed(BrokerConnection.CONNECTION_CLOSED_BY_BROKER);
+                        } else {
+                            Log.e("DEBUG", "service not binded");
+                        }
+
                     } catch (IOException e) {
                         e.printStackTrace();
                     }
@@ -146,9 +174,10 @@ public class BrokerConnectionService extends Service {
 
 
     private void closeConnection() {
-        Log.d("DEBUG", "BrokerConnectionService.closeConnection");
+        Log.d("DEBUG", "BrokerConnectionService.closeConnection, socket = "+socket);
         try {
-            if (socket.isConnected()) {
+            if (socket != null && socket.isConnected()) {
+                Log.d("DEBUG", "BrokerConnectionService.closeConnection, socket.close()");
                 socket.close();
             }
             notifyConnectionClosed(BrokerConnection.CONNECTION_CLOSED_BY_APP);
@@ -158,7 +187,12 @@ public class BrokerConnectionService extends Service {
     }
 
 
-
+    private boolean isNetworkAvailable() {
+        ConnectivityManager connectivityManager
+                = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+        NetworkInfo activeNetworkInfo = connectivityManager.getActiveNetworkInfo();
+        return activeNetworkInfo != null && activeNetworkInfo.isConnected();
+    }
 
     private void sendText(String requestId, String text) {
         try {
@@ -199,6 +233,7 @@ public class BrokerConnectionService extends Service {
 
     private void notifyConnectionEstablished() {
         try {
+            isConnected = true;
             Message msg = new Message();
             msg.what = BrokerConnection.CONNECTION_ESTABLISHED;
             toClientHandlerMessenger.send(msg);
@@ -210,7 +245,7 @@ public class BrokerConnectionService extends Service {
     private void notifyConnectionClosed(int close_id) {
         try {
             Log.d("DEBUG", "notifyConnectionClosed()");
-
+            isConnected = false;
             Message msg = new Message();
             msg.what = close_id;
             toClientHandlerMessenger.send(msg);
@@ -222,13 +257,14 @@ public class BrokerConnectionService extends Service {
     @Override
     public boolean onUnbind(Intent intent) {
         Log.d("DEBUG", "onUnbind");
-
+        isBinded = false;
         closeConnection();
         return super.onUnbind(intent);
     }
 
     @Override
     public IBinder onBind(Intent intent) {
+        isBinded = true;
         return fromClientMessenger.getBinder();
     }
 }
