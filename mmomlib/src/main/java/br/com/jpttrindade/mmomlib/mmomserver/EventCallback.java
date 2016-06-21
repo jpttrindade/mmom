@@ -1,13 +1,12 @@
 package br.com.jpttrindade.mmomlib.mmomserver;
 
 /**
- * Created by jpttrindade on 15/06/16.
+ * Created by jpttrindade on 19/06/16.
  */
-public interface BrokerEventCallback {
-    public void onReceiveRequest(MMomMessage message);
+public interface EventCallback {
+    public void onReceiveRequest(byte[] data);
 
     public void onConnectionEstablished();
 
     public void onConnectionClosed();
-
 }

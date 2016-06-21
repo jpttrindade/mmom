@@ -7,14 +7,14 @@ import android.os.Message;
  * Created by jpttrindade on 14/06/16.
  */
 public class BrokerEventHandler extends Handler{
-    private BrokerEventCallback brokerEventCallback;
+    private EventCallback brokerEventCallback;
 
     public BrokerEventHandler() {}
-    public BrokerEventHandler(BrokerEventCallback callback){
+    public BrokerEventHandler(EventCallback callback){
         this.brokerEventCallback = callback;
     }
 
-    public void setBrokerEventCallback(BrokerEventCallback eventCallback) {
+    public void setBrokerEventCallback(EventCallback eventCallback) {
         this.brokerEventCallback = eventCallback;
     }
     public void removeEventCallcack() {
@@ -26,14 +26,14 @@ public class BrokerEventHandler extends Handler{
         if(brokerEventCallback != null) {
             switch (msg.what) {
                 case BrokerConnection.CONNECTION_ESTABLISHED:
-
                     brokerEventCallback.onConnectionEstablished();
-
                     break;
                 case BrokerConnection.CONNECTION_CLOSED_BY_APP:
                     brokerEventCallback.onConnectionClosed();
-
                     break;
+                case BrokerConnection.RECEIVE_REQUEST_MESSAGE:
+                    byte[] data = (byte[]) msg.obj;
+                    brokerEventCallback.onReceiveRequest(data);
             }
         }
 

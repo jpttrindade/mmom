@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
@@ -15,25 +16,31 @@ import android.os.Process;
 import android.os.RemoteException;
 import android.util.Log;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.PrintStream;
 import java.net.Socket;
 import java.net.SocketException;
 
 public class BrokerConnectionService extends Service {
 
-    private Looper looper;
+    static final String RESPONDER_ID = "ResponderID";
+    static final String CONNECTION_DATA = "coNNectionDATA";
 
     private Messenger toClientHandlerMessenger;
-
     private Socket socket;
-    private PrintStream out;
-    private InputStream in;
+
     private ServiceHandler mServiceHandler;
+    private ServiceHandler mServiceHandlerResponse;
+
     private boolean isBinded;
     private boolean isConnected;
+    private String responderId;
+    private byte[] connectionData;
+
 
     private final class ServiceHandler extends Handler{
         public ServiceHandler(Looper looper) {
@@ -43,19 +50,25 @@ public class BrokerConnectionService extends Service {
         @Override
         public void handleMessage(Message msg) {
             switch (msg.what) {
-                case BrokerConnection.CONNECT_TO_BROKER: {
+                case BrokerConnection.CONNECT_TO_BROKER:
                     Log.d("DEBUG", "ServiceHandler - CONNECT_TO_BROKER");
 
                     String host = (String) msg.obj;
                     int port = msg.arg1;
-                    connectToBroker(host, port);
-                }
+                    connectToBroker(host, port, connectionData);
+                break;
+                case BrokerConnection.RESPONSE_MESSAGE:
+                    Log.d("DEBUG", "ServiceHandler - RESPONSE_MESSAGE");
+                    byte[] response = (byte[])msg.obj;
+                    sendResponse(response);
+                    break;
             }
         }
     }
 
     final Messenger fromClientMessenger = new Messenger(new FromClientHandler());
     class FromClientHandler extends Handler {
+
         @Override
         public void handleMessage(final Message msg) {
             switch (msg.what) {
@@ -66,12 +79,16 @@ public class BrokerConnectionService extends Service {
                 case BrokerConnection.CONNECT_TO_BROKER:
                     String host = (String) msg.obj;
                     int port = msg.arg1;
-                    connectToBroker(host, port);
+                    Bundle b = msg.getData();
+                    byte[] connectionData = b.getByteArray(BrokerConnectionService.CONNECTION_DATA);
+                    connectToBroker(host, port, connectionData);
                     break;
                 case BrokerConnection.RESPONSE_MESSAGE:
-                    ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-                    //sendConnection(outputStream);
-                    sendText("requestId","{\"response\":\"que orgulho meu jovem coração.\"}");
+                    Log.d("DEBUG", "service recenbendo o dataToSend");
+                    final byte[] response = (byte[]) msg.obj;
+                    Message threadMessage = mServiceHandlerResponse.obtainMessage(BrokerConnection.RESPONSE_MESSAGE);
+                    threadMessage.obj = response;
+                    mServiceHandlerResponse.sendMessage(threadMessage);
                     break;
                 case BrokerConnection.CLOSE_CONNECTION:
                     closeConnection();
@@ -88,10 +105,15 @@ public class BrokerConnectionService extends Service {
         HandlerThread thread = new HandlerThread("BrokerConnectionService", Process.THREAD_PRIORITY_BACKGROUND);
         thread.start();
 
+        HandlerThread thread2 = new HandlerThread("BrokerConnectionService", Process.THREAD_PRIORITY_BACKGROUND);
+        thread2.start();
+
         mServiceHandler = new ServiceHandler(thread.getLooper());
+        mServiceHandlerResponse = new ServiceHandler(thread2.getLooper());
     }
 
-    private void connectToBroker(final String host, final int port) {
+    private void connectToBroker(final String host, final int port, final byte[] connectionData) {
+        this.connectionData = connectionData;
         Log.d("DEBUG", "conectando-se ao Broker");
         if(socket == null || !socket.isConnected()) {
             mServiceHandler.post(new Runnable() {
@@ -99,21 +121,10 @@ public class BrokerConnectionService extends Service {
                 public void run() {
                     try {
                         socket = new Socket(host, port);
-                        sendConnection();
+                        sendResponse(connectionData);
                         notifyConnectionEstablished();
+                        receiveRequest();
 
-                        while(true) {
-                            int i = socket.getInputStream().read();
-                            Log.d("DEBUG", "socket.read = " + i);
-
-                            if (i == -1) {
-                                throw new SocketException();
-                            } else {
-                                Log.d("DEBUG", "i>0");
-                                receiveMessage(socket.getInputStream());
-                            }
-
-                        }
                     } catch (SocketException e) {
                         //TODO retry
                         if(isConnected) {
@@ -152,28 +163,39 @@ public class BrokerConnectionService extends Service {
                     }
                 }
             });
-        }else{
-            Log.d("DEBUG", "socket == "+socket);
-            if(socket != null)
-                Log.d("DEBUG", "socket == "+socket.isConnected());
+        }
+    }
 
-            try {
-                int size = in.read();
+    private void receiveRequest() throws IOException {
 
-                byte[] data = new byte[size];
-
-                in.read(data, 0, size);
-
-
-                Log.d("DEBUG", new String(data));
-            } catch (IOException e) {
-                e.printStackTrace();
+        ByteArrayOutputStream byteArrayOutputStream;
+        while(true) {
+            byteArrayOutputStream = new ByteArrayOutputStream();
+            int size = 1024;
+            byte[] buffer = new byte[size];
+            int len;
+            while ((len = socket.getInputStream().read(buffer, 0, size)) != -1){
+                byteArrayOutputStream.write(buffer, 0, len);
+                getMessage(byteArrayOutputStream.toByteArray());
+                byteArrayOutputStream.flush();
+            }
+            if (len == -1) {
+                byteArrayOutputStream.close();
+                throw new SocketException();
             }
         }
     }
 
-    private void receiveMessage(InputStream inputStream) {
+    private void getMessage(byte[] buffer) {
         Log.d("DEBUG", "BrokerConnectionService.receiverMessage");
+        try {
+            Message msg = new Message();
+            msg.what = BrokerConnection.RECEIVE_REQUEST_MESSAGE;
+            msg.obj = buffer;
+            toClientHandlerMessenger.send(msg);
+        } catch (RemoteException e) {
+            e.printStackTrace();
+        }
     }
 
 
@@ -182,9 +204,7 @@ public class BrokerConnectionService extends Service {
         try {
             if (socket != null && isConnected) {
                 Log.d("DEBUG", "BrokerConnectionService.closeConnection, socket.close()");
-                //socket.shutdownInput();
                 socket.close();
-
             }
             notifyConnectionClosed(BrokerConnection.CONNECTION_CLOSED_BY_APP);
         }catch (IOException e) {
@@ -200,39 +220,21 @@ public class BrokerConnectionService extends Service {
         return activeNetworkInfo != null && activeNetworkInfo.isConnected();
     }
 
-    private void sendText(String requestId, String text) {
+    private void sendResponse(byte[] response) {
         try {
-            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-            outputStream.write(1); //type text
+            Log.d("DEBUG", "response.length: "+response.length);
 
-            //RequestId
-            outputStream.write(requestId.getBytes().length); //RequestId size
-            outputStream.write(requestId.getBytes()); //RequestId requestId
+            ByteArrayInputStream inputStream = new ByteArrayInputStream(response);
+            OutputStream outputStream = socket.getOutputStream();
+            byte[] buffer = new byte[2*1024];
+            int count;
+            while ((count = inputStream.read(buffer)) > 0) {
+                outputStream.write(buffer, 0, count);
+            }
+            inputStream.close();
+            outputStream.flush();
 
-            //content
-            outputStream.write(text.getBytes().length); //Content size
-            outputStream.write(text.getBytes()); //Content content
-
-            outputStream.writeTo(socket.getOutputStream());
-            outputStream.close();
         } catch (IOException e) {
-            e.printStackTrace();
-        }
-
-    }
-
-    private void sendConnection(){
-        try {
-
-            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-            outputStream.write(0); //type conn
-            String uuid = "uuid1";
-            //content
-            outputStream.write(uuid.getBytes().length); //content size
-            outputStream.write(uuid.getBytes()); //content content
-            outputStream.writeTo(socket.getOutputStream());
-            outputStream.close();
-        }catch (IOException e) {
             e.printStackTrace();
         }
     }
@@ -270,6 +272,8 @@ public class BrokerConnectionService extends Service {
 
     @Override
     public IBinder onBind(Intent intent) {
+
+        this.responderId = intent.getStringExtra(RESPONDER_ID);
         isBinded = true;
         return fromClientMessenger.getBinder();
     }

@@ -4,6 +4,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
@@ -23,6 +24,7 @@ public class BrokerConnection implements ServiceConnection{
     public static final int RESPONSE_MESSAGE = 4;
     public static final int CLOSE_CONNECTION = 5;
     public static final int CONNECTION_CLOSED_BY_BROKER = 6;
+    public static final int RECEIVE_REQUEST_MESSAGE = 7;
 
     private final String host;
     private final int port;
@@ -30,6 +32,9 @@ public class BrokerConnection implements ServiceConnection{
 
     private boolean isBounded;
     private boolean isConnected;
+
+    private byte[] connectionData;
+
     // Recebe os eventos do broker
     private BrokerEventHandler brokerEventHandler;
 
@@ -37,7 +42,6 @@ public class BrokerConnection implements ServiceConnection{
     private Messenger toServiceHandlerMessenger = null;
     //Encapsula o handler(service->brokerConnection) a ser enviado ao service
     final Messenger fromServiceHandlerMessenger = new Messenger(new FromServiceHandler());
-
     //Handler de recebimento de chamadas/msgs/operacoes vindas do service
     class FromServiceHandler extends Handler {
 
@@ -63,9 +67,14 @@ public class BrokerConnection implements ServiceConnection{
                     isBounded = false;
                     isConnected = false;
                     break;
+                case RECEIVE_REQUEST_MESSAGE:
+                    byte[] buffer = (byte[]) msg.obj;
+                    receiveRequest(buffer);
+                    break;
             }
         }
     }
+
 
     public BrokerConnection(Context context, String host, int port) {
         Log.d("DEBUG", "instanciando o BrokerConnection");
@@ -74,10 +83,14 @@ public class BrokerConnection implements ServiceConnection{
         this.context = context;
     }
 
-    public void connect(BrokerEventCallback callback) {
+    public void connect(String responderId, byte[] connectionData, EventCallback callback) {
         this.brokerEventHandler = new BrokerEventHandler(callback);
+        this.connectionData = connectionData;
         Log.d("DEBUG", "dando o bindService antes de conectar-se ao broker.");
-        context.bindService(new Intent(context,BrokerConnectionService.class), this, Context.BIND_AUTO_CREATE);
+        Intent it = new Intent(context,BrokerConnectionService.class);
+        it.putExtra(BrokerConnectionService.RESPONDER_ID, responderId);
+
+        context.bindService(it, this, Context.BIND_AUTO_CREATE);
     }
 
     private void realConnect() {
@@ -88,6 +101,9 @@ public class BrokerConnection implements ServiceConnection{
             msg.what = CONNECT_TO_BROKER;
             msg.obj = host;
             msg.arg1 = port;
+            Bundle bundle = new Bundle();
+            bundle.putByteArray(BrokerConnectionService.CONNECTION_DATA, connectionData);
+            msg.setData(bundle);
             toServiceHandlerMessenger.send(msg);
         } catch (RemoteException e) {
             e.printStackTrace();
@@ -102,7 +118,7 @@ public class BrokerConnection implements ServiceConnection{
         }
     }
 
-    public void response(Object data) {
+    public void response(byte[] data) {
         if(isConnected) {
             try {
                 Message msg = new Message();
@@ -132,6 +148,13 @@ public class BrokerConnection implements ServiceConnection{
 
     }
 
+
+    private void receiveRequest(byte[] buffer) {
+        Message msg = new Message();
+        msg.what = BrokerConnection.RECEIVE_REQUEST_MESSAGE;
+        msg.obj = buffer;
+        brokerEventHandler.sendMessage(msg);
+    }
 
 
     private void sendfromServiceHandlerMessenger() {
