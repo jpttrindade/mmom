@@ -177,7 +177,9 @@ public class BrokerConnectionService extends Service {
             while ((len = socket.getInputStream().read(buffer, 0, size)) != -1){
                 byteArrayOutputStream.write(buffer, 0, len);
                 getMessage(byteArrayOutputStream.toByteArray());
-                byteArrayOutputStream.flush();
+                byteArrayOutputStream.reset();
+                //socket.getInputStream().reset();
+                Log.d("DEBUG", "len = "+len);
             }
             if (len == -1) {
                 byteArrayOutputStream.close();
@@ -186,12 +188,14 @@ public class BrokerConnectionService extends Service {
         }
     }
 
-    private void getMessage(byte[] buffer) {
+    private void getMessage(final byte[] buffer) {
         Log.d("DEBUG", "BrokerConnectionService.receiverMessage");
         try {
             Message msg = new Message();
             msg.what = BrokerConnection.RECEIVE_REQUEST_MESSAGE;
             msg.obj = buffer;
+
+            Log.d("DEBUG", "getMessage() = "+MMomMessageEncoder.decode(buffer));
             toClientHandlerMessenger.send(msg);
         } catch (RemoteException e) {
             e.printStackTrace();
