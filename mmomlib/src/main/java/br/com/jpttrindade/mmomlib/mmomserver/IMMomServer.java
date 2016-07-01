@@ -7,7 +7,7 @@ import java.io.File;
  */
 public interface IMMomServer {
     public void connect(String responderId, BrokerEventCallback callback);
-    public void response(String requestorId, String requestId, String response);
-    public void response(String requestorId, String requestId, File response);
+    public void response(String response);
+    public void response(File response);
     public void closeConnection();
 }

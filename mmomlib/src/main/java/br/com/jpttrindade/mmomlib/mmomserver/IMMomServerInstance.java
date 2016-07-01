@@ -12,6 +12,7 @@ public class IMMomServerInstance implements IMMomServer, EventCallback {
     private BrokerConnection brokerConnection;
     private BrokerEventCallback callback;
     private String responderId ;
+    private MMomMessage reqMessage;
 
     IMMomServerInstance(Context context, String brokerHost, int brokerPort) {
         brokerConnection = new BrokerConnection(context, brokerHost, brokerPort);
@@ -31,13 +32,13 @@ public class IMMomServerInstance implements IMMomServer, EventCallback {
 
 
     @Override
-    public void response(String requestorId, String requestId, String response) {
+    public void response(String response) {
 
 
         MMomMessage message = new MMomMessage();
         message.setCode(MMomMessage.CODE_RESPONSE);
-        message.setDestinationId(requestorId);
-        message.setRequestId(requestId);
+        message.setDestinationId(reqMessage.requestorId);
+        message.setRequestId(reqMessage.requestId);
         message.setType(MMomMessage.TEXT);
         message.setTextContent(response);
 
@@ -47,12 +48,12 @@ public class IMMomServerInstance implements IMMomServer, EventCallback {
     }
 
     @Override
-    public void response(String requestorId, String requestId, File response) {
+    public void response(File response) {
         MMomMessage message = new MMomMessage();
 
         message.setCode(MMomMessage.CODE_RESPONSE);
-        message.setDestinationId(requestorId);
-        message.setRequestId(requestId);
+        message.setDestinationId(message.requestorId);
+        message.setRequestId(message.requestId);
         message.setType(MMomMessage.FILE);
         message.setFileName(response.getName());
         message.setFileContent(response);
@@ -71,8 +72,10 @@ public class IMMomServerInstance implements IMMomServer, EventCallback {
 
     @Override
     public void onReceiveRequest(byte[] data) {
-        MMomMessage message = MMomMessageEncoder.decode(data);
-        callback.onReceiveRequest(message);
+        reqMessage = MMomMessageEncoder.decode(data);
+
+
+        callback.onReceiveRequest(reqMessage.textContent);
     }
 
     @Override
